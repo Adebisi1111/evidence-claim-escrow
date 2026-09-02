@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Intelligence — Evidence-Based Claim Escrow</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);min-height:100vh;color:#fff;line-height:1.5}
+    header{border-bottom:1px solid rgba(255,255,255,0.1);backdrop-filter:blur(12px);background:rgba(255,255,255,0.05);position:sticky;top:0;z-index:50}
+    .header-inner{max-width:1200px;margin:0 auto;padding:1rem 2rem;display:flex;justify-content:space-between;align-items:center}
+    .logo{display:flex;align-items:center;gap:0.75rem}
+    .logo-icon{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#10b981);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.2rem;box-shadow:0 4px 12px rgba(59,130,246,0.3)}
+    .logo h1{font-size:1.2rem;font-weight:700}
+    .logo span{font-size:0.7rem;color:rgba(255,255,255,0.5)}
+    .btn{padding:0.5rem 1rem;border-radius:8px;font-weight:500;font-size:0.875rem;cursor:pointer;transition:all 0.2s;border:none;display:inline-flex;align-items:center;gap:0.5rem}
+    .btn-primary{background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2)}
+    .btn-primary:hover{background:rgba(255,255,255,0.2)}
+    .btn-gradient{background:linear-gradient(135deg,#3b82f6,#10b981);color:#fff;box-shadow:0 4px 12px rgba(59,130,246,0.3)}
+    .btn-gradient:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(59,130,246,0.4)}
+    .btn-gradient:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+    .container{max-width:1200px;margin:0 auto;padding:2rem}
+    .hero{text-align:center;padding:3rem 0}
+    .hero h2{font-size:2.5rem;font-weight:800;letter-spacing:-0.03em;line-height:1.1;margin-bottom:1rem}
+    .hero p{color:rgba(255,255,255,0.6);font-size:1.125rem;max-width:600px;margin:0 auto}
+    .card{background:rgba(255,255,255,0.05);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:1.5rem;margin-bottom:1.5rem}
+    .card-title{font-size:1rem;font-weight:600;margin-bottom:1rem}
+    .input{width:100%;padding:0.75rem 1rem;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#fff;font-size:0.875rem;margin-bottom:0.75rem;transition:all 0.2s;font-family:inherit}
+    .input::placeholder{color:rgba(255,255,255,0.3)}
+    .input:focus{outline:none;border-color:#3b82f6;background:rgba(255,255,255,0.08)}
+    select.input{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='rgba(255,255,255,0.4)' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 1rem center;padding-right:2.5rem}
+    select.input option{background:#1e1b4b;color:#fff}
+    textarea.input{resize:none}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+    .stat-card{background:rgba(255,255,255,0.05);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:1.25rem;text-align:center}
+    .stat-value{font-size:1.75rem;font-weight:700}
+    .stat-label{font-size:0.75rem;color:rgba(255,255,255,0.5);margin-top:0.25rem}
+    .claims-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+    .claims-header h3{font-size:1rem;font-weight:600}
+    .claims-count{font-size:0.75rem;color:rgba(255,255,255,0.4)}
+    .filters{display:flex;gap:0.5rem;align-items:center}
+    .search-box{position:relative}
+    .search-box input{padding:0.5rem 1rem 0.5rem 2rem;max-width:180px;margin-bottom:0;font-size:0.8125rem;border-radius:8px}
+    .search-box::before{content:'🔍';position:absolute;left:0.6rem;top:50%;transform:translateY(-50%);font-size:0.7rem}
+    .filter-group{display:flex;gap:0.125rem;background:rgba(255,255,255,0.05);border-radius:8px;padding:0.2rem}
+    .filter-btn{padding:0.3rem 0.75rem;border-radius:6px;font-size:0.75rem;font-weight:500;cursor:pointer;transition:all 0.2s;border:none;background:transparent;color:rgba(255,255,255,0.5)}
+    .filter-btn.active{background:rgba(59,130,246,0.2);color:#60a5fa}
+    .filter-btn:hover:not(.active){color:#fff}
+    .claims-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1rem}
+    .claim-card{background:rgba(255,255,255,0.05);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:1.25rem;transition:all 0.2s;display:flex;flex-direction:column}
+    .claim-card:hover{background:rgba(255,255,255,0.08)}
+    .claim-top{display:flex;justify-content:space-between;align-items:start;margin-bottom:0.75rem}
+    .claim-id{font-size:0.7rem;color:rgba(255,255,255,0.4);font-family:monospace}
+    .verdict{padding:0.2rem 0.5rem;border-radius:9999px;font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em}
+    .verdict-verified{background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.2)}
+    .verdict-rejected{background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.2)}
+    .verdict-inconclusive{background:rgba(234,179,8,0.15);color:#facc15;border:1px solid rgba(234,179,8,0.2)}
+    .claim-text{font-weight:500;font-size:0.875rem;margin-bottom:0.75rem}
+    .evidence-hash{font-size:0.65rem;color:rgba(255,255,255,0.4);font-family:monospace;margin-bottom:0.75rem;word-break:break-all}
+    .claim-details{background:rgba(0,0,0,0.2);border-radius:8px;padding:0.75rem;margin-bottom:0.75rem;flex:1}
+    .details-row{display:flex;justify-content:space-between;font-size:0.7rem;color:rgba(255,255,255,0.5);margin-bottom:0.375rem}
+    .details-row span:last-child{color:rgba(255,255,255,0.7);font-weight:500}
+    .reasoning{font-size:0.75rem;color:rgba(255,255,255,0.6);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5}
+    .claim-footer{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:0.75rem;border-top:1px solid rgba(255,255,255,0.05)}
+    .claim-poster{font-size:0.7rem;color:rgba(255,255,255,0.4);font-family:monospace}
+    .resolve-btn{padding:0.4rem 0.875rem;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;transition:all 0.2s;border:1px solid rgba(59,130,246,0.3);background:rgba(59,130,246,0.1);color:#60a5fa}
+    .resolve-btn:hover{background:rgba(59,130,246,0.2)}
+    .resolve-btn:disabled{opacity:0.4;cursor:not-allowed}
+    .empty{grid-column:1/-1;text-align:center;padding:3rem;color:rgba(255,255,255,0.4)}
+    .info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.5rem}
+    .info-card{background:rgba(255,255,255,0.05);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:1.25rem;text-align:center}
+    .info-icon{font-size:1.5rem;margin-bottom:0.5rem}
+    .info-card h4{font-weight:600;margin-bottom:0.375rem;font-size:0.875rem}
+    .info-card p{font-size:0.75rem;color:rgba(255,255,255,0.5)}
+    .error{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:0.75rem;margin-bottom:1rem;color:#f87171;font-size:0.875rem;display:none}
+    footer{border-top:1px solid rgba(255,255,255,0.05);margin-top:3rem;padding:1.5rem 0;text-align:center;color:rgba(255,255,255,0.3);font-size:0.75rem}
+    @media(max-width:768px){.stats{grid-template-columns:repeat(2,1fr)}.info-grid{grid-template-columns:1fr}.claims-grid{grid-template-columns:1fr}.hero h2{font-size:1.75rem}.header-inner{padding:1rem}.container{padding:1rem}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">I</div>
+      <div><h1>Intelligence</h1><div>Evidence-Based Claim Escrow</div></div>
+    </div>
+    <button id="connectBtn" class="btn btn-primary" onclick="connect()">Connect Wallet</button>
+  </div>
+</header>
+
+<main class="container">
+  <div class="hero">
+    <h2>Evidence-Based Claim Escrow</h2>
+    <p>Submit claims with evidence, AI consensus verifies, funds escrowed until resolution.</p>
+  </div>
+
+  <div id="errorBox" class="error"></div>
+
+  <div class="card">
+    <div class="card-title">Submit a Claim</div>
+    <input type="text" id="claimId" class="input" placeholder="Claim ID (e.g., claim-1)">
+    <textarea id="claimText" class="input" rows="2" placeholder="Enter your claim"></textarea>
+    <textarea id="claimEvidence" class="input" rows="3" placeholder="Paste evidence (URL, text, data)"></textarea>
+    <select id="claimCategory" class="input">
+      <option value="General">General</option>
+      <option value="Science">Science</option>
+      <option value="News">News</option>
+      <option value="Finance">Finance</option>
+      <option value="Tech">Tech</option>
+      <option value="Legal">Legal</option>
+    </select>
+    <button id="submitBtn" class="btn btn-gradient" style="width:100%;padding:0.75rem" onclick="submitClaim()" disabled>Connect Wallet to Submit</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Lookup Claim</div>
+    <div style="display:flex;gap:0.75rem;align-items:start">
+      <input type="text" id="lookupId" class="input" placeholder="Enter claim ID" style="margin-bottom:0;flex:1">
+      <button class="btn btn-primary" onclick="lookupClaim()" style="white-space:nowrap">Lookup</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Total Claims</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:#4ade80" id="statVerified">0</div><div class="stat-label">Verified</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:#f87171" id="statRejected">0</div><div class="stat-label">Rejected</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:#facc15" id="statInconclusive">0</div><div class="stat-label">Inconclusive</div></div>
+  </div>
+
+  <div class="card">
+    <div class="claims-header">
+      <div>
+        <h3>Claims</h3>
+        <span class="claims-count" id="claimsCount">0 total</span>
+      </div>
+      <div class="filters">
+        <div class="search-box"><input type="text" id="searchInput" placeholder="Search..." oninput="filterClaims()"></div>
+        <div class="filter-group">
+          <button class="filter-btn active" onclick="setFilter('all')">All</button>
+          <button class="filter-btn" onclick="setFilter('pending')">Pending</button>
+          <button class="filter-btn" onclick="setFilter('resolved')">Resolved</button>
+        </div>
+      </div>
+    </div>
+    <div id="claimsList" class="claims-grid">
+      <div class="empty">No claims yet. Submit the first one above!</div>
+    </div>
+  </div>
+
+  <div class="info-grid">
+    <div class="info-card"><div class="info-icon">🔐</div><div>On-Chain Evidence</div><p>keccak-256 hash stored for verification</p></div>
+    <div class="info-card"><div class="info-icon">🤖</div><div>AI Consensus</div><p>Independent validators assess evidence</p></div>
+    <div class="info-card"><div class="info-icon">⚡</div><div>Composable</div><p>Minimal API for any dApp integration</p></div>
+  </div>
+</main>
+
+<footer>Intelligence — Built on GenLayer | Contract: 0xcA6649EAef3Ab6ce97c52227a2d7a6aa21Ee8614</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script>
+var CONTRACT = '0xcA6649EAef3Ab6ce97c52227a2d7a6aa21Ee8614';
+var provider, signer, account;
+var claims = [];
+var filter = 'all';
+
+function showError(msg){var e=document.getElementById('errorBox');e.textContent=msg;e.style.display='block';setTimeout(function(){e.style.display='none'},5000)}
+
+function connect() {
+  if(!window.ethereum){alert('Please install MetaMask or Rabby');return}
+  window.ethereum.request({method:'eth_requestAccounts'}).then(function(accounts){
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    return provider.getSigner();
+  }).then(function(s){
+    signer = s;
+    return signer.getAddress();
+  }).then(function(addr){
+    account = addr;
+    document.getElementById('connectBtn').textContent = account.slice(0,6)+'...'+account.slice(-4);
+    document.getElementById('connectBtn').className = 'btn btn-gradient';
+    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('submitBtn').textContent = 'Submit Claim';
+    return switchChain();
+  }).then(function(){
+    return loadClaims();
+  }).catch(function(e){
+    console.error(e);
+    showError('Connection failed: ' + e.message);
+  });
+}
+
+function switchChain() {
+  return window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x107D'}]}).catch(function(e){
+    if(e.code === 4902) {
+      return window.ethereum.request({method:'wallet_addEthereumChain',params:[{
+        chainId:'0x107D',chainName:'GenLayer Bradbury Testnet',rpcUrls:['https://rpc-bradbury.genlayer.com'],
+        nativeCurrency:{name:'GEN',symbol:'GEN',decimals:18},blockExplorerUrls:['https://explorer-bradbury.genlayer.com']
+      }]});
+    }
+    throw e;
+  });
+}
+
+function submitClaim() {
+  var id = document.getElementById('claimId').value;
+  var text = document.getElementById('claimText').value;
+  var evidence = document.getElementById('claimEvidence').value;
+  var category = document.getElementById('claimCategory').value;
+  if(!id||!text||!evidence){alert('Please fill all fields');return}
+  var iface = new ethers.utils.Interface(['function submit_claim(string,string,string,string)']);
+  var data = iface.encodeFunctionData('submit_claim',[id,text,evidence,category]);
+  signer.sendTransaction({to:CONTRACT,data:data,gasLimit:500000n}).then(function(tx){
+    return tx.wait();
+  }).then(function(){
+    document.getElementById('claimId').value='';
+    document.getElementById('claimText').value='';
+    document.getElementById('claimEvidence').value='';
+    return loadClaims();
+  }).then(function(){
+    alert('Claim submitted!');
+  }).catch(function(e){
+    console.error(e);
+    showError('Submit failed: ' + e.message);
+  });
+}
+
+function resolveClaim(id) {
+  var iface = new ethers.utils.Interface(['function resolve_claim(string)']);
+  var data = iface.encodeFunctionData('resolve_claim',[id]);
+  signer.sendTransaction({to:CONTRACT,data:data,gasLimit:500000n}).then(function(tx){
+    return tx.wait();
+  }).then(function(){
+    alert('Resolution sent! Waiting for AI consensus...');
+    setTimeout(function(){ refreshClaim(id); }, 10000);
+  }).catch(function(e){
+    console.error(e);
+    showError('Resolve failed: ' + e.message);
+  });
+}
+
+function refreshClaim(id) {
+  var iface = new ethers.utils.Interface(['function get_claim(string) view returns (string)']);
+  provider.call({to:CONTRACT,data:iface.encodeFunctionData('get_claim',[id])}).then(function(result){
+    var decoded = iface.decodeFunctionResult('get_claim',result)[0];
+    var parsed = JSON.parse(decoded);
+    if(parsed.exists) {
+      var found = false;
+      claims = claims.map(function(c){ if(c.claim_id===id){found=true;return parsed;} return c; });
+      if(!found) claims = [parsed, ...claims];
+      renderClaims();
+      updateStats();
+    }
+  }).catch(function(e){ console.error('Refresh failed:',e); });
+}
+
+function lookupClaim() {
+  var id = document.getElementById('lookupId').value;
+  if(!id){alert('Please enter a claim ID');return}
+  var iface = new ethers.utils.Interface(['function get_claim(string) view returns (string)']);
+  provider.call({to:CONTRACT,data:iface.encodeFunctionData('get_claim',[id])}).then(function(result){
+    var decoded = iface.decodeFunctionResult('get_claim',result)[0];
+    var parsed = JSON.parse(decoded);
+    if(parsed.exists) {
+      var found = false;
+      claims = claims.map(function(c){ if(c.claim_id===id){found=true;return parsed;} return c; });
+      if(!found) claims = [parsed, ...claims];
+      renderClaims();
+      updateStats();
+    } else {
+      alert('Claim not found');
+    }
+  }).catch(function(e){ console.error(e); showError('Lookup failed: ' + e.message); });
+}
+
+function loadClaims() {
+  var iface = new ethers.utils.Interface(['function get_claims_count() view returns (string)']);
+  return provider.call({to:CONTRACT,data:iface.encodeFunctionData('get_claims_count',[])}).then(function(result){
+    var count = iface.decodeFunctionResult('get_claims_count',result)[0];
+    var promises = [];
+    for(var i = 1; i <= Math.min(parseInt(count), 20); i++) {
+      promises.push(provider.call({to:CONTRACT,data:iface.encodeFunctionData('get_claim',['claim-'+i])}).then(function(result){
+        var decoded = iface.decodeFunctionResult('get_claim',result)[0];
+        var parsed = JSON.parse(decoded);
+        return parsed.exists ? parsed : null;
+      }).catch(function(){ return null; }));
+    }
+    return Promise.all(promises);
+  }).then(function(results){
+    claims = results.filter(function(c){ return c !== null; });
+    renderClaims();
+    updateStats();
+  });
+}
+
+function renderClaims() {
+  var list = document.getElementById('claimsList');
+  var search = document.getElementById('searchInput').value.toLowerCase();
+  var filtered = claims;
+  if(filter==='pending') filtered = claims.filter(function(c){return !c.resolved;});
+  if(filter==='resolved') filtered = claims.filter(function(c){return c.resolved;});
+  if(search) filtered = filtered.filter(function(c){
+    return c.claim_id.toLowerCase().includes(search) || (c.text||'').toLowerCase().includes(search);
+  });
+  if(filtered.length===0){list.innerHTML='<div class="empty">No claims found</div>';return}
+  list.innerHTML = filtered.map(function(c){
+    return '<div class="claim-card">' +
+      '<div class="claim-top">' +
+        '<span class="claim-id">#' + c.claim_id + '</span>' +
+        (c.resolved ? '<span class="verdict verdict-' + (c.verdict||'').toLowerCase() + '">' + c.verdict + '</span>' : '') +
+      '</div>' +
+      '<p class="claim-text">' + (c.text||'') + '</p>' +
+      '<p class="evidence-hash">🔐 ' + (c.evidence_hash ? c.evidence_hash.slice(0,20)+'...' : '') + '</p>' +
+      (c.resolved ? '<div class="claim-details">' +
+        '<div class="details-row"><span>Confidence</span><span>' + (c.confidence||0) + '%</span></div>' +
+        (c.reasoning ? '<p class="reasoning">' + c.reasoning + '</p>' : '') +
+      '</div>' : '') +
+      '<div class="claim-footer">' +
+        '<span class="claim-poster">' + (c.poster ? c.poster.slice(0,6)+'...'+c.poster.slice(-4) : '') + '</span>' +
+        (!c.resolved ? '<button class="resolve-btn" onclick="resolveClaim(\'' + c.claim_id + '\')">Resolve</button>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function updateStats() {
+  document.getElementById('statTotal').textContent = claims.length;
+  document.getElementById('statVerified').textContent = claims.filter(function(c){return c.verdict==='VERIFIED';}).length;
+  document.getElementById('statRejected').textContent = claims.filter(function(c){return c.verdict==='REJECTED';}).length;
+  document.getElementById('statInconclusive').textContent = claims.filter(function(c){return c.verdict==='INCONCLUSIVE';}).length;
+  document.getElementById('claimsCount').textContent = claims.length + ' total';
+}
+
+function setFilter(f) {
+  filter = f;
+  var btns = document.querySelectorAll('.filter-btn');
+  for(var i=0;i<btns.length;i++) btns[i].classList.remove('active');
+  if(event && event.target) event.target.classList.add('active');
+  renderClaims();
+}
+
+function filterClaims(){renderClaims();}
+</script>
+</body>
+</html>

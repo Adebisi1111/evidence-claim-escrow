@@ -15,10 +15,10 @@ Builders of prediction markets, staking-task platforms, or any service that requ
 ## Architecture
 
 ```
-User → submitClaim(claim_id, text, evidence, category) → claim stored
-Validator → resolveClaim(claim_id) → AI consensus → verdict + reasoning stored
-Anyone → getClaim(claim_id) → full claim with verdict
-Anyone → getEvidence(claim_id) → evidence hash + verification
+User → submit_claim(claim_id, text, evidence_url, category) → claim stored
+Validator → resolve_claim(claim_id) → AI consensus → verdict + reasoning stored
+Anyone → get_claim(claim_id) → full claim with verdict
+Anyone → get_evidence(claim_id) → evidence hash + verification
 ```
 
 ## State Design
@@ -27,35 +27,38 @@ Anyone → getEvidence(claim_id) → evidence hash + verification
 |-------|------|---------|
 | id | str | Unique claim identifier |
 | text | str | Claim text |
-| evidence_hash | str | keccak256 hash of evidence |
-| evidence_data | str | Truncated evidence (2000 chars max) |
+| evidence_url | str | URL of evidence |
 | category | str | Claim category |
 | poster | str | Submitter address |
+| claimant | str | Claimant address (receives payout) |
+| amount | u256 | Escrowed GEN |
 | timestamp | u256 | Submission time |
 | resolved | bool | Resolution status |
 | verdict | str | VERIFIED/REJECTED/INCONCLUSIVE |
 | confidence | u256 | 0-100 score |
 | reasoning | str | AI evidence assessment |
 | resolved_at | u256 | Resolution time |
+| appeal_count | u256 | Number of appeals |
 
 ## Safety Notes
 
 - No external calls before state update (re-entrancy safe)
 - Only validator can resolve claims
-- Validator can be replaced via `setValidator`
-- Evidence hash verification via `getEvidence`
+- Validator can be replaced via `set_validator`
+- Evidence hash verification via `get_evidence`
 
 ## API
 
 | Function | Params | Returns | Notes |
 |----------|--------|---------|-------|
-| submitClaim | claim_id, text, evidence, category | None | Stores claim + evidence hash |
-| resolveClaim | claim_id | verdict | Only validator. AI consensus. |
-| setValidator | new_validator | None | Only current validator |
-| getClaim | claim_id | JSON | Full claim with verdict |
-| getEvidence | claim_id | JSON | Evidence hash + verification |
-| getClaimsCount | None | str | Total claims |
-| getValidator | None | str | Current validator |
+| submit_claim | claim_id, text, evidence_url, category, claimant | None | Payable. Stores claim + escrow |
+| resolve_claim | claim_id | verdict | Only validator. AI consensus. |
+| appeal_verdict | claim_id | str | Payable. 1 GEN bond. |
+| finalize_appeal | appeal_id | verdict | Only validator. |
+| get_claim | claim_id | JSON | Full claim with verdict |
+| get_appeal | appeal_id | JSON | Full appeal state |
+| get_claims_count | None | str | Total claims |
+| now | None | str | Current timestamp |
 
 ## Deploy & Test
 

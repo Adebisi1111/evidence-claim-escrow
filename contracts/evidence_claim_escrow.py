@@ -2,8 +2,8 @@
 
 # Decentralized Evidence-Based Claim Escrow
 #
-# A claimant submits a claim with evidence and escrows funds.
-# AI validators assess the evidence and reach consensus.
+# A claimant submits a claim with evidence URL and escrows funds.
+# AI validators fetch the evidence and assess it to reach consensus.
 # If verified → funds released to claimant.
 # If rejected → funds returned to poster.
 # Disputes can be appealed with a bond for re-assessment.
@@ -81,13 +81,25 @@ class EvidenceClaimEscrow(gl.Contract):
     def _now(self) -> int:
         return int(datetime.now(timezone.utc).timestamp())
 
+    def _fetch_evidence(self, url: str) -> str:
+        """Fetch evidence content from URL. Returns empty string on failure."""
+        try:
+            content = gl.nondet.web.render(url, mode="text")
+            return content[:4000] if content else ""
+        except Exception:
+            return ""
+
     def _assess_evidence(self, claim_text: str, evidence_url: str, category: str) -> dict:
         """AI assesses the evidence to determine if claim is supported."""
+        # Fetch evidence content as part of the assessment
+        evidence_content = self._fetch_evidence(evidence_url)
+        
         prompt = (
             f"Claim: '{claim_text}'\n"
             f"Category: {category}\n"
-            f"Evidence URL: {evidence_url}\n\n"
-            f"Your task: Determine if the evidence at the given URL supports this claim.\n"
+            f"Evidence URL: {evidence_url}\n"
+            f"Evidence Content: {evidence_content[:2000]}\n\n"
+            f"Your task: Determine if the evidence supports this claim.\n"
             f"Consider:\n"
             f"1. Does the evidence directly support or contradict the claim?\n"
             f"2. Is the evidence credible and relevant?\n"

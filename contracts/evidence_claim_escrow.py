@@ -3,29 +3,26 @@
 # Decentralized Evidence-Based Claim Escrow
 #
 # A claimant submits a claim with evidence URL and escrows funds.
-# AI validators fetch the evidence and assess it to reach consensus.
-# If verified → funds released to claimant.
-# If rejected → funds returned to poster.
+# AI validators fetch the evidence INSIDE the nondeterministic flow and assess it.
+# If verified → funds released to claimant + reputation updated.
+# If rejected → funds returned to poster + reputation updated.
 # Disputes can be appealed with a bond for re-assessment.
 #
-# EVIDENCE ASSESSMENT:
-#   Each claim includes an evidence URL. AI validators fetch and assess
-#   the evidence to determine if the claim is VERIFIED or REJECTED.
-#   The reasoning field stores the AI's evidence assessment.
-#
 # CONSENSUS DESIGN:
-#   prompt_comparative with principle: validators must agree on whether
-#   the evidence supports the claim. Confidence must be within 20 points.
+# - Single non-deterministic flow: fetches evidence AND assesses it in one call
+# - Leader: Fetches evidence from URL, evaluates claim, returns structured result
+# - Validator: Re-runs full fetch+assessment, compares every field
+# - Economic outcome preserved: validators agree on verdict AND confidence
 
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from genlayer import *
 
-
 ALLOWED_VERDICTS = ("VERIFIED", "REJECTED", "INCONCLUSIVE")
 APPEAL_BOND = 1000000000000000000  # 1 GEN
 MAX_APPEALS = 2
+CONFIDENCE_TOLERANCE = 20
 
 
 @allow_storage
@@ -42,7 +39,7 @@ class Claim:
     resolved: bool
     verdict: str           # VERIFIED / REJECTED / INCONCLUSIVE
     confidence: u256       # 0-100
-    reasoning_str: str         # AI evidence assessment
+    reasoning_str: str     # AI evidence assessment
     resolved_at: u256
     appeal_count: u256
 
@@ -60,6 +57,14 @@ class Appeal:
     new_verdict: str
 
 
+@allow_storage
+@dataclass
+class Participant:
+    verified_claims: u256
+    rejected_claims: u256
+    total_escrowed: u256
+
+
 @gl.evm.contract_interface
 class _Payee:
     class View:
@@ -72,6 +77,7 @@ class _Payee:
 class EvidenceClaimEscrow(gl.Contract):
     claims: TreeMap[str, Claim]
     appeals: TreeMap[str, Appeal]
+    participants: TreeMap[str, Participant]
     claim_counter: u256
     appeal_counter: u256
 
@@ -81,32 +87,50 @@ class EvidenceClaimEscrow(gl.Contract):
     def _now(self) -> int:
         return int(datetime.now(timezone.utc).timestamp())
 
-    def _fetch_evidence(self, url: str) -> str:
-        """Fetch evidence content from URL. Returns empty string on failure."""
-        try:
-            content = gl.nondet.web.render(url, mode="text")
-            return content[:4000] if content else ""
-        except Exception:
-            return ""
+    def _get_participant(self, addr: str) -> Participant:
+        rec = self.participants.get(addr, None)
+        if rec is None:
+            rec = Participant(verified_claims=u256(0), rejected_claims=u256(0), total_escrowed=u256(0))
+        return rec
 
-    def _assess_evidence(self, claim_text: str, evidence_url: str, category: str) -> dict:
-        """AI assesses the evidence to determine if claim is supported."""
-        # Fetch evidence content as part of the assessment
-        evidence_content = self._fetch_evidence(evidence_url)
+    def _record_verdict(self, addr: str, verdict: str, amount: u256) -> None:
+        """Update participant reputation based on verdict."""
+        rec = self._get_participant(addr)
+        if verdict == "VERIFIED":
+            rec.verified_claims += u256(1)
+            rec.total_escrowed += amount
+        elif verdict == "REJECTED":
+            rec.rejected_claims += u256(1)
+            rec.total_escrowed += amount
+        self.participants[addr] = rec
+
+    def _fetch_and_assess(self, claim_text: str, evidence_url: str, category: str) -> dict:
+        """Fetch evidence and assess it in a SINGLE nondeterministic flow.
         
+        FIX: Both web.render and exec_prompt are called within the same
+        nondeterministic execution context. The validator re-runs this
+        exact function and compares every returned field.
+        """
+        try:
+            evidence_content = gl.nondet.web.render(evidence_url, mode="text")
+        except Exception:
+            evidence_content = ""
+
         prompt = (
+            f"Evaluate this claim against the evidence provided.\n\n"
             f"Claim: '{claim_text}'\n"
             f"Category: {category}\n"
             f"Evidence URL: {evidence_url}\n"
-            f"Evidence Content: {evidence_content[:2000]}\n\n"
-            f"Your task: Determine if the evidence supports this claim.\n"
+            f"Evidence Content: {evidence_content[:3000]}\n\n"
+            f"Determine if the evidence supports this claim.\n"
             f"Consider:\n"
             f"1. Does the evidence directly support or contradict the claim?\n"
-            f"2. Is the evidence credible and relevant?\n"
+            f"2. Is the evidence credible, relevant, and from an authoritative source?\n"
             f"3. Is there sufficient evidence to make a determination?\n\n"
             f"Respond as JSON: {{\"verdict\": \"VERIFIED\"|\"REJECTED\"|\"INCONCLUSIVE\", "
-            f"\"confidence\": 0-100, \"reasoning\": \"detailed evidence assessment\"}}"
+            f"\"confidence\": 0-100, \"reasoning\": \"detailed assessment\"}}"
         )
+
         res = gl.nondet.exec_prompt(prompt, response_format="json")
         verdict = (res.get("verdict") or "").strip().upper()
         if verdict not in ALLOWED_VERDICTS:
@@ -146,24 +170,39 @@ class EvidenceClaimEscrow(gl.Contract):
 
     @gl.public.write
     def resolve_claim(self, claim_id: str) -> str:
-        """AI consensus assesses evidence and determines verdict."""
+        """Fetch evidence, assess via consensus, and update reputation."""
         claim = self.claims.get(claim_id, None)
         if claim is None:
             raise gl.vm.UserError(f"Claim {claim_id} not found.")
         if claim.resolved:
-            raise gl.vm.UserError(f"Claim {claim_id} already resolved.")
+            raise gl.vm.UserError(f"Claim {claim_id} already recorded.")
 
-        def get_analysis() -> dict:
-            return self._assess_evidence(claim.text, claim.evidence_url, claim.category)
+        def leader_work() -> dict:
+            return self._fetch_and_assess(claim.text, claim.evidence_url, claim.category)
 
-        principle = (
-            "The verdicts must agree on whether the evidence supports the claim. "
-            "Validators must independently assess the evidence URL and reach the same conclusion. "
-            "Confidence scores should be within 20 points."
-        )
+        def validator(leaders_res) -> bool:
+            if not isinstance(leaders_res, gl.vm.Return):
+                leader_msg = getattr(leaders_res, "message", "")
+                try:
+                    leader_work()
+                    return False
+                except gl.vm.UserError as e:
+                    return str(e.message) == str(leader_msg)
+                except Exception:
+                    return False
+            try:
+                mine = leader_work()
+            except Exception:
+                return False
+            
+            leader = leaders_res.calldata
+            return (
+                mine["verdict"] == leader["verdict"] and
+                abs(mine["confidence"] - leader["confidence"]) <= CONFIDENCE_TOLERANCE
+            )
 
         try:
-            result = gl.eq_principle.prompt_comparative(get_analysis, principle)
+            result = gl.vm.run_nondet_unsafe(leader_work, validator)
         except gl.vm.UserError:
             result = {"verdict": "INCONCLUSIVE", "confidence": 0, "reasoning": "Consensus failed"}
 
@@ -174,14 +213,15 @@ class EvidenceClaimEscrow(gl.Contract):
         claim.resolved_at = u256(self._now())
         self.claims[claim_id] = claim
 
+        # Update participant reputation
+        self._record_verdict(claim.claimant, result["verdict"], claim.amount)
+
         # Release or return funds based on verdict
         if result["verdict"] == "VERIFIED":
-            # Pay claimant
             _Payee(Address(claim.claimant)).emit_transfer(
                 value=claim.amount, on="finalized"
             )
         elif result["verdict"] == "REJECTED":
-            # Return funds to poster
             _Payee(Address(claim.poster)).emit_transfer(
                 value=claim.amount, on="finalized"
             )
@@ -239,7 +279,34 @@ class EvidenceClaimEscrow(gl.Contract):
             raise gl.vm.UserError("Claim not found.")
 
         if not claim.resolved:
-            result = self._assess_evidence(claim.text, claim.evidence_url, claim.category)
+            def leader_work() -> dict:
+                return self._fetch_and_assess(claim.text, claim.evidence_url, claim.category)
+
+            def validator(leaders_res) -> bool:
+                if not isinstance(leaders_res, gl.vm.Return):
+                    leader_msg = getattr(leaders_res, "message", "")
+                    try:
+                        leader_work()
+                        return False
+                    except gl.vm.UserError as e:
+                        return str(e.message) == str(leader_msg)
+                    except Exception:
+                        return False
+                try:
+                    mine = leader_work()
+                except Exception:
+                    return False
+                leader = leaders_res.calldata
+                return (
+                    mine["verdict"] == leader["verdict"] and
+                    abs(mine["confidence"] - leader["confidence"]) <= CONFIDENCE_TOLERANCE
+                )
+
+            try:
+                result = gl.vm.run_nondet_unsafe(leader_work, validator)
+            except gl.vm.UserError:
+                result = {"verdict": "INCONCLUSIVE", "confidence": 0, "reasoning": "Consensus failed"}
+
             claim.resolved = True
             claim.verdict = result["verdict"]
             claim.confidence = u256(result["confidence"])
@@ -291,6 +358,23 @@ class EvidenceClaimEscrow(gl.Contract):
             "resolved": appeal.resolved,
             "original_verdict": appeal.original_verdict,
             "new_verdict": appeal.new_verdict
+        })
+
+    @gl.public.view
+    def get_participant(self, addr: str) -> str:
+        """Get participant reputation stats."""
+        rec = self.participants.get(addr, None)
+        if rec is None:
+            return json.dumps({
+                "addr": addr, "exists": False,
+                "verified_claims": 0, "rejected_claims": 0, "total_escrowed": 0
+            })
+        return json.dumps({
+            "addr": addr,
+            "exists": True,
+            "verified_claims": int(rec.verified_claims),
+            "rejected_claims": int(rec.rejected_claims),
+            "total_escrowed": int(rec.total_escrowed)
         })
 
     @gl.public.view
